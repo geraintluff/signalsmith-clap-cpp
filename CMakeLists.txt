@@ -8,9 +8,9 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 set(CMAKE_VERBOSE_MAKEFILE on)
 
 if(EMSCRIPTEN)
-	# Use shared memory (and atomics/etc.)
-	add_compile_options(-pthread)
-	add_link_options(-pthread)
+	# Use shared memory (which also implies atomics/etc. and a different stdlib build)
+	add_compile_options(-sSHARED_MEMORY)
+	add_link_options(-sSHARED_MEMORY -sIMPORTED_MEMORY)
 	# to use `wasm64` (64-bit memory), add -sMEMORY64=1
 endif()
 
@@ -69,9 +69,9 @@ if (PROJECT_IS_TOP_LEVEL)
 	)
 	FetchContent_Declare(
 		clap-wrapper
-		GIT_REPOSITORY https://github.com/free-audio/clap-wrapper.git
-		GIT_TAG v0.13.0
-		GIT_SHALLOW ON
+		GIT_REPOSITORY https://github.com/geraintluff/clap-wrapper.git
+		GIT_TAG wclap-wasi-sdk
+		GIT_SHALLOW OFF
 	)
 	FetchContent_MakeAvailable(clap clap-wrapper)
 endif()

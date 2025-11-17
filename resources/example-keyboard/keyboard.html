@@ -269,7 +269,7 @@
 				let data = CBOR.decode(e.data);
 				
 				if (typeof data == 'object') {
-					inputKeys = data.keys;
+					inputKeys = data.keys || [];
 					redrawKeys(data.time);
 				}
 			});
@@ -283,7 +283,6 @@
 				if (y > blackHeightRatio) {
 					let octave = key - (key%12);
 					let whiteKey = Math.floor((floatKey - octave)*7/12);
-					console.log(whiteKey);
 					key = octave + whitePatternInv[whiteKey];
 				}
 				if (blackPattern[key%12]) {

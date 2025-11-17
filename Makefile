@@ -16,6 +16,15 @@ vst3-%: out/build
 	cmake --build out/build --target $*_vst3 --config Release
 	pushd out/Release/$*.vst3/Contents/; rm -rf Resources; cp -r "$(CURRENT_DIR)/resources" Resources
 
+########
+
+out/build-wasi: CMakeLists.txt
+	cmake . -B out/build-wasi $(CMAKE_PARAMS) -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=.. -DCMAKE_TOOLCHAIN_FILE=./wasi-sdk/share/cmake/wasi-sdk-pthread.cmake
+
+wclap2-%: out/build-wasi
+	cmake --build out/build-wasi --target $*_wclap --config Release
+	cd out/$*.wclap/; tar --exclude=".*" -vczf ../$*.wclap.tar.gz *
+
 ####### Open a test project in REAPER #######
 
 %.RPP:
