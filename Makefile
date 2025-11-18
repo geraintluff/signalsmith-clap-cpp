@@ -1,31 +1,31 @@
 .PHONY: emsdk
 help:
-	@echo "\tmake clap-example-plugins\n\tmake vst3-example-plugins\n\tmake dev-example-plugins\n\nWCLAP with Emscripten:\n\tmake wclap-example-plugins"
+	@echo "\tmake clap-example-plugins\n\tmake vst3-example-plugins\n\tmake dev-example-plugins\n\nWCLAP with wasi-sdk:\n\tmake wasi-example-plugins\n\nWCLAP with Emscripten:\n\tmake emscripten-example-plugins"
 
 clean:
 	rm -rf out
 
 out/build: CMakeLists.txt
-	cmake . -B out/build $(CMAKE_PARAMS) -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=.. -G Xcode
+	cmake . -B out/build -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=.. -G Xcode
 
 clap-%: out/build
 	cmake --build out/build --target $*_clap --config Release
-	pushd out/Release/$*.clap/Contents/; rm -rf Resources; cp -r "$(CURRENT_DIR)/resources" Resources
 
 vst3-%: out/build
 	cmake --build out/build --target $*_vst3 --config Release
-	pushd out/Release/$*.vst3/Contents/; rm -rf Resources; cp -r "$(CURRENT_DIR)/resources" Resources
 
-########
+######## WCLAP with wasi-sdk
 
 out/build-wasi: CMakeLists.txt
-	cmake . -B out/build-wasi $(CMAKE_PARAMS) -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=.. -DCMAKE_TOOLCHAIN_FILE=./wasi-sdk/share/cmake/wasi-sdk-pthread.cmake -DCMAKE_BUILD_TYPE=Release
+	cmake . -B out/build-wasi -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=../Release -DCMAKE_TOOLCHAIN_FILE=./wasi-sdk/share/cmake/wasi-sdk-pthread.cmake -DCMAKE_BUILD_TYPE=Release
 
-wclap2-%: out/build-wasi
+wasi-%: out/build-wasi
 	cmake --build out/build-wasi --target $*_wclap --config Release
-	cd out/$*.wclap/; tar --exclude=".*" -vczf ../$*.wclap.tar.gz *
+	cd out/Release/$*.wclap/; tar --exclude=".*" -vczf ../$*.wclap.tar.gz *
 
 ####### Open a test project in REAPER #######
+
+CURRENT_DIR := $(shell pwd)
 
 %.RPP:
 	mkdir -p `dirname "$@"`
@@ -48,7 +48,6 @@ dev-%: clap-%
 # This automatically installs the Emscripten SDK
 # if the environment variable EMSDK is not already set
 
-CURRENT_DIR := $(shell pwd)
 EMSDK ?= $(CURRENT_DIR)/emsdk
 EMSDK_ENV = unset CMAKE_TOOLCHAIN_FILE; EMSDK_QUIET=1 . "$(EMSDK)/emsdk_env.sh";
 
@@ -64,7 +63,6 @@ emsdk:
 out/build-emscripten: emsdk
 	$(EMSDK_ENV) emcmake cmake . -B out/build-emscripten -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=../Release -DCMAKE_BUILD_TYPE=Release
 
-wclap-%: out/build-emscripten
+emscripten-%: out/build-emscripten
 	$(EMSDK_ENV) cmake --build out/build-emscripten --target $*_wclap --config Release
-	cp -r resources/* out/Release/$*.wclap/
 	cd out/Release/$*.wclap/; tar --exclude=".*" -vczf ../$*.wclap.tar.gz *

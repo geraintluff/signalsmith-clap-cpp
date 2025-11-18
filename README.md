@@ -56,11 +56,11 @@ cmake --build out/build --target example-plugins_clap --config Release
 
 If you're not familiar with CMake:
 
-* The `cpp-example-plugins` target will generate `cpp-example-plugins.clap`
-* When generating the project, you can specify a particular back-end, e.g. `-G Xcode`.  If you're using the default one, it might not support multiple build configs, so specify `-DCMAKE_BUILD_TYPE=Release` instead
+* The `example-plugins_clap` target will generate `example-plugins.clap` inside `build/` (or `build/Release/`)
+* When generating the project, you can specify a particular back-end, e.g. `-G Xcode`.  If you're using the default one, it might not support multiple build configs, so specify `-DCMAKE_BUILD_TYPE=Release` when generating the build project
 * I personally add `-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=..` when generating as well, which puts the output in `out/` instead of `out/build`
 
-For personal convenience when developing on my Mac, I've included a `Makefile` which calls through to CMake.  It assumes a Mac system with Xcode and REAPER installed, so if you run `make dev-cpp-example-plugins` it will build the plugins and open REAPER to test them.
+For personal convenience when developing on my Mac, I've included a `Makefile` which calls through to CMake.  It assumes a Mac system with Xcode and REAPER installed, so if you run `make dev-example-plugins` it will build the plugins and open REAPER to test them.
 
 ### WebAssembly (WASI-SDK)
 
