@@ -19,7 +19,7 @@ vst3-%: out/build
 ########
 
 out/build-wasi: CMakeLists.txt
-	cmake . -B out/build-wasi $(CMAKE_PARAMS) -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=.. -DCMAKE_TOOLCHAIN_FILE=./wasi-sdk/share/cmake/wasi-sdk-pthread.cmake
+	cmake . -B out/build-wasi $(CMAKE_PARAMS) -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=.. -DCMAKE_TOOLCHAIN_FILE=./wasi-sdk/share/cmake/wasi-sdk-pthread.cmake -DCMAKE_BUILD_TYPE=Release
 
 wclap2-%: out/build-wasi
 	cmake --build out/build-wasi --target $*_wclap --config Release
