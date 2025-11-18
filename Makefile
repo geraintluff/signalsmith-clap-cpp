@@ -1,6 +1,6 @@
 .PHONY: emsdk
 help:
-	@echo "\tmake clap-example-plugins\n\tmake vst3-example-plugins\n\tmake dev-example-plugins\n\nWCLAP with wasi-sdk:\n\tmake wasi-example-plugins\n\nWCLAP with Emscripten:\n\tmake emscripten-example-plugins"
+	@echo "\tmake clap-example-plugins\n\tmake vst3-example-plugins\n\tmake dev-example-plugins\n\nWCLAP with wasi-sdk: (set WASI_SDK to path)\n\tmake wasi-example-plugins\n\nWCLAP with Emscripten:\n\tmake emscripten-example-plugins"
 
 clean:
 	rm -rf out
@@ -16,8 +16,10 @@ vst3-%: out/build
 
 ######## WCLAP with wasi-sdk
 
+WASI_SDK ?= ./wasi-sdk
+
 out/build-wasi: CMakeLists.txt
-	cmake . -B out/build-wasi -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=../Release -DCMAKE_TOOLCHAIN_FILE=./wasi-sdk/share/cmake/wasi-sdk-pthread.cmake -DCMAKE_BUILD_TYPE=Release
+	cmake . -B out/build-wasi -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=../Release -DCMAKE_TOOLCHAIN_FILE=$(WASI_SDK)/share/cmake/wasi-sdk-pthread.cmake -DCMAKE_BUILD_TYPE=Release
 
 wasi-%: out/build-wasi
 	cmake --build out/build-wasi --target $*_wclap --config Release
