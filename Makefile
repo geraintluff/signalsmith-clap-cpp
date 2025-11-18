@@ -23,7 +23,7 @@ out/build-wasi: CMakeLists.txt
 
 wasi-%: out/build-wasi
 	cmake --build out/build-wasi --target $*_wclap --config Release
-	cd out/Release/$*.wclap/; tar --exclude=".*" -vczf ../$*.wclap.tar.gz *
+	cd out/Release/$*.wclap/ && tar --exclude=".*" -vczf ../$*.wclap.tar.gz *
 
 ####### Open a test project in REAPER #######
 
@@ -67,4 +67,4 @@ out/build-emscripten: emsdk
 
 emscripten-%: out/build-emscripten
 	$(EMSDK_ENV) cmake --build out/build-emscripten --target $*_wclap --config Release
-	cd out/Release/$*.wclap/; tar --exclude=".*" -vczf ../$*.wclap.tar.gz *
+	cd out/Release/$*.wclap/ && tar --exclude=".*" -vczf ../$*.wclap.tar.gz *
