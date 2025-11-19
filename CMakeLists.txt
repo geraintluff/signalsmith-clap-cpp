@@ -69,9 +69,9 @@ if (PROJECT_IS_TOP_LEVEL)
 	)
 	FetchContent_Declare(
 		clap-wrapper
-		GIT_REPOSITORY https://github.com/geraintluff/clap-wrapper.git
-		GIT_TAG wclap-wasi-sdk
-		GIT_SHALLOW OFF
+		GIT_REPOSITORY https://github.com/free-audio/clap-wrapper.git
+		GIT_TAG 4b16e64a5cd8e180c9ed550f52d4a7e1dccee549
+		GIT_SHALLOW on
 	)
 	FetchContent_MakeAvailable(clap clap-wrapper)
 endif()

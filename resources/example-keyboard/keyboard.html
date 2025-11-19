@@ -56,7 +56,6 @@
 		
 		<script src="cbor.min.js"></script>
 		<script>
-			// white-left, black, white, black, white-right
 			let blackPattern = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
 			let whitePattern = [0, 1, 1, 2, 2, 3, 4, 4, 5, 5, 6, 6];
 			let whitePatternInv = [0, 2, 4, 5, 7, 9, 11];
@@ -296,7 +295,7 @@
 			};
 			function sendKey(state, action) {
 				window.parent.postMessage(CBOR.encode({
-					id: state.id,
+					pointerId: state.pointerId,
 					action: action,
 					key: state.key,
 					velocity: state.velocity
@@ -305,10 +304,11 @@
 			keyboard.style.touchAction = 'none'; // no pan/zoom/etc.
 			keyboard.addEventListener('pointerdown', e => {
 				keyboard.setPointerCapture(e.pointerId);
+				e.preventDefault();
 				
 				let state = pointerIds[e.pointerId] = pointerIds[e.pointerId] || {};
 				updateKey(state, e);
-				state.id = e.pointerId;
+				state.pointerId = e.pointerId;
 				state.down = true;
 				state.attack = true;
 				state.velocity = state.y;
@@ -320,11 +320,12 @@
 				sendKey(state, "down");
 			});
 			keyboard.addEventListener('pointermove', e => {
+				e.preventDefault();
 				let state = pointerIds[e.pointerId] = pointerIds[e.pointerId] || {};
 				let prevKey = state.key;
 				updateKey(state, e);
 				let newKey = state.key;
-				if (newKey != prevKey) {
+				if (newKey != prevKey && state.down) {
 					state.key = prevKey;
 					sendKey(state, "up");
 					state.key = newKey;
@@ -334,10 +335,12 @@
 			});
 			keyboard.addEventListener('pointerup', e => {
 				let state = pointerIds[e.pointerId] = pointerIds[e.pointerId] || {};
-				state.down = false;
+				if (state.down) {
+					state.down = false;
+					sendKey(state, "up");
+				}
 				outputKeys = Object.keys(pointerIds).map(id => pointerIds[id]).filter(s => s.down);
 				redrawKeys();
-				sendKey(state, "up");
 			});
 			keyboard.addEventListener('pointerout', e => {
 				let state = pointerIds[e.pointerId];

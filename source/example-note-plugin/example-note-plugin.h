@@ -37,6 +37,10 @@ struct ExampleNotePlugin {
 	static const clap_plugin * create(const clap_host *host) {
 		return &(new Plugin(host))->clapPlugin;
 	}
+
+	// Until CLAP 1.2.7 is properly released, we import the definitions from here
+	using clap_plugin_webview = webview_gui::clap_plugin_webview;
+	using clap_host_webview = webview_gui::clap_host_webview;
 	
 	const clap_host *host;
 	// Extensions aren't filled out until `.pluginInit()`
@@ -44,6 +48,7 @@ struct ExampleNotePlugin {
 	const clap_host_audio_ports *hostAudioPorts = nullptr;
 	const clap_host_note_ports *hostNotePorts = nullptr;
 	const clap_host_params *hostParams = nullptr;
+	const clap_host_webview *hostWebview = nullptr;
 
 	uint32_t noteIdCounter = 0;
 	struct OutputNote {
@@ -107,7 +112,9 @@ struct ExampleNotePlugin {
 		getHostExtension(host, CLAP_EXT_AUDIO_PORTS, hostAudioPorts);
 		getHostExtension(host, CLAP_EXT_NOTE_PORTS, hostNotePorts);
 		getHostExtension(host, CLAP_EXT_PARAMS, hostParams);
-		webview.init(&clapPlugin, host, clapBundleResourceDir);
+
+		webview.init(&clapPlugin, host);
+		hostWebview = webview.extHostWebview;
 		return true;
 	}
 	void pluginDestroy() {
@@ -315,8 +322,11 @@ struct ExampleNotePlugin {
 				.receive=clapPluginMethod<&Plugin::webviewReceive>(),
 			};
 			return &ext;
+		} else if (!std::strcmp(extId, CLAP_EXT_GUI)) {
+			// Our webview helper defines this one
+			return webview.extPluginGui;
 		}
-		return webview.getExtension(extId);
+		return nullptr;
 	}
 	
 	// ---- state save/load ----
@@ -432,10 +442,7 @@ struct ExampleNotePlugin {
 
 	// ---- GUI ----
 	
-	static void * pluginToWebview(const clap_plugin *plugin) {
-		return &((Plugin *)plugin->plugin_data)->webview;
-	}
-	webview_gui::ClapWebviewGui<pluginToWebview> webview;
+	webview_gui::ClapWebviewGui webview;
 	std::atomic_flag sentWebviewState = ATOMIC_FLAG_INIT;
 	
 	int32_t webviewGetUri(char *uri, uint32_t uri_capacity) {

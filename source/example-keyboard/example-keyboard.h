@@ -45,6 +45,7 @@ struct ExampleKeyboard {
 	const clap_host_audio_ports *hostAudioPorts = nullptr;
 	const clap_host_note_ports *hostNotePorts = nullptr;
 	const clap_host_params *hostParams = nullptr;
+	const webview_gui::clap_host_webview *hostWebview = nullptr;
 
 	double sampleRate = 1;
 	std::vector<bool> noteSentToMeters;
@@ -68,8 +69,7 @@ struct ExampleKeyboard {
 		metersNotes.reserve(noteManager.polyphony());
 		sentMeters.test_and_set(); // nothing to send initially
 		
-		webview.width = 860;
-		webview.height = 160;
+		webview.setSize(860, 160); // default size
 	}
 
 	// Makes a C function pointer to a C++ method
@@ -99,7 +99,9 @@ struct ExampleKeyboard {
 		getHostExtension(host, CLAP_EXT_AUDIO_PORTS, hostAudioPorts);
 		getHostExtension(host, CLAP_EXT_NOTE_PORTS, hostNotePorts);
 		getHostExtension(host, CLAP_EXT_PARAMS, hostParams);
-		webview.init(&clapPlugin, host, clapBundleResourceDir);
+
+		webview.init(&clapPlugin, host);
+		hostWebview = webview.extHostWebview;
 		return true;
 	}
 	void pluginDestroy() {
@@ -308,8 +310,10 @@ struct ExampleKeyboard {
 				.receive=clapPluginMethod<&Plugin::webviewReceive>(),
 			};
 			return &ext;
+		} else if (!std::strcmp(extId, CLAP_EXT_GUI)) {
+			return webview.extPluginGui;
 		}
-		return webview.getExtension(extId);
+		return nullptr;
 	}
 	
 	// ---- state save/load ----
@@ -423,10 +427,7 @@ struct ExampleKeyboard {
 
 	// ---- GUI ----
 	
-	static void * pluginToWebview(const clap_plugin *plugin) {
-		return &((Plugin *)plugin->plugin_data)->webview;
-	}
-	webview_gui::ClapWebviewGui<pluginToWebview> webview;
+	webview_gui::ClapWebviewGui webview;
 	std::atomic_flag sentWebviewState = ATOMIC_FLAG_INIT;
 	
 	int32_t webviewGetUri(char *uri, uint32_t uri_capacity) {
@@ -471,9 +472,7 @@ struct ExampleKeyboard {
 				.velocity=0
 			};
 			cbor.forEachPair([&](Cbor key, Cbor value){
-				if (key == "id") {
-					event.note_id = value;
-				} else if (key == "action") {
+				if (key == "action") {
 					if (value == "up") event.header.type = CLAP_EVENT_NOTE_OFF;
 				} else if (key == "key") {
 					event.key = value;
@@ -492,7 +491,7 @@ struct ExampleKeyboard {
 			std::vector<unsigned char> bytes;
 			writeMeters(bytes);
 			hasMeters.clear(); // We're done with the metering data - `.process()` can fill it up again
-			webview.send(bytes.data(), bytes.size());
+			hostWebview->send(host, bytes.data(), bytes.size());
 		}
 
 		if (!sentWebviewState.test_and_set()) {
@@ -509,7 +508,7 @@ struct ExampleKeyboard {
 			}
 			cbor.close();
 			
-			webview.send(bytes.data(), bytes.size());
+			hostWebview->send(host, bytes.data(), bytes.size());
 		}
 	}
 };
