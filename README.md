@@ -2,11 +2,11 @@
 
 The CLAP API is neat and elegant, and can be used from C++ in a very bare-bones way.  Over time, I've started to prefer using this directly instead of using a framework to abstract things.  All this needs is a little template helper ([`pluginMethod()`](include/signalsmith-clap/cpp.h)) which lets you make plain-C function pointers to C++ methods.
 
-This repo contains some example plugins using this approach, as well as demonstrating the webview extension from CLAP 1.2.7.
+This repo contains some example plugins using this approach, as well as demonstrating the webview extension from CLAP 1.2.7.  You can see the WebAssembly builds of these plugins running in a [demo browser host](https://signalsmith-audio.github.io/wasm-clap-browserhost/?module=plugin/example-plugins-wasm32.wclap.tar.gz).
 
 There are also some additional helpers, and common dependencies which I use personally, so this repo can also be included in other project.  These helpers are all independent (so you can pick-and-choose), and none of them are top-level classes you *must* inherit from.
 
-<p style="text-align:center">⚠️ WIP, only fully tested on MacOS and WebAssembly so far</p>
+<p style="text-align:center">⚠️ WIP, only fully tested on MacOS and WebAssembly so far.</p>
 
 ## Code structure
 
