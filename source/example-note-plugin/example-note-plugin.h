@@ -75,7 +75,7 @@ struct ExampleNotePlugin {
 		}
 		sentWebviewState.clear();
 	}
-
+	
 	ExampleNotePlugin(const clap_host *host) : host(host) {
 		outputNotes.resize(noteManager.polyphony());
 		log2Rate.formatFn = [](double value){

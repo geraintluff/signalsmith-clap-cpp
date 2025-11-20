@@ -19,7 +19,7 @@ vst3-%: out/build
 WASI_SDK ?= ./wasi-sdk
 
 out/build-wasi: CMakeLists.txt
-	cmake . -B out/build-wasi -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=../Release -DCMAKE_TOOLCHAIN_FILE=$(WASI_SDK)/share/cmake/wasi-sdk-p1.cmake -DCMAKE_BUILD_TYPE=Release
+	cmake . -B out/build-wasi -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=../Release -DCMAKE_TOOLCHAIN_FILE=$(WASI_SDK)/share/cmake/wasi-sdk-pthread.cmake -DCMAKE_BUILD_TYPE=Release
 
 wasi-%: out/build-wasi
 	rm -rf out/Release/$*.wclap # clean resources each time

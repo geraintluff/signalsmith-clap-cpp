@@ -142,6 +142,7 @@
 				let height = canvas.height/canvas.width;
 
 				let context = getKeyboardContext(canvas);
+				if (!context) return;
 				context.lineWidth = 0.0012;
 				context.lineJoin = 'round';
 				context.strokeStyle = '#000';
@@ -159,6 +160,7 @@
 				let height = canvas.height/canvas.width;
 								
 				let context = getKeyboardContext(canvas);
+				if (!context) return;
 				context.clearRect(0, 0, canvas.width, canvas.height);
 				keys.forEach(key => {
 					let c = Math.round(255*key.hue);
@@ -176,6 +178,7 @@
 				canvas.width = canvas.width; // clear it
 
 				let context = getKeyboardContext(canvas);
+				if (!context) return;
 				context.fillStyle = '#FFF1';
 				for (let k = 0; k <= 128; k += 12) {
 					let x = k/128, w = 1/128;
