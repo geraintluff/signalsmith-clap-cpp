@@ -127,10 +127,12 @@
 				if (canvas.width != targetWidth) canvas.width = targetWidth;
 				let targetHeight = Math.round(canvas.offsetHeight*window.devicePixelRatio);
 				if (canvas.height != targetHeight) canvas.height = targetHeight;
+				if (!targetHeight || !targetWidth) return null;
 				return canvas.getContext('2d');
 			}
 			function getKeyboardContext(canvas) {
 				let context = getContext(canvas);
+				if (!context) return null;
 				context.resetTransform();
 				context.scale(canvas.width, canvas.width);
 				return context;
@@ -207,6 +209,7 @@
 
 				let canvas = document.querySelector('#scroll');
 				let context = getContext(canvas);
+				if (!context) return;
 				context.drawImage(canvas, 0, -height);
 
 				context.fillStyle = '#000';

@@ -166,21 +166,6 @@ struct ExampleNotePlugin {
 		auto *eventsOut = process->out_events;
 
 		noteManager.startBlock();
-		auto processNoteTasks = [&](auto &tasks) {
-			for (auto &note : tasks) {
-				auto &outNote = outputNotes[note.voiceIndex];
-				
-				// generate a new note ID, and store velocity
-				if (note.state == NoteManager::stateDown || note.state == NoteManager::stateLegato) {
-					outNote.noteId = int32_t(noteIdCounter++);
-					if (noteIdCounter >= 0x80000000) noteIdCounter = 0;
-					outNote.velocity = note.velocity;
-					outNote.timeSinceTrigger = 0;
-				} else if (note.released() && note.ageAt(process->frames_count) > sampleRate*noteTailSeconds) {
-					noteManager.stop(note, eventsOut);
-				}
-			}
-		};
 		
 		double rateHz = std::exp2(log2Rate.value);
 		double periodSamples = sampleRate/rateHz;
@@ -191,32 +176,10 @@ struct ExampleNotePlugin {
 		uint32_t eventCount = eventsIn->size(eventsIn);
 		uint32_t blockProcessedTo = 0;
 		for (uint32_t i = 0; i <= eventCount; ++i) {
-			uint32_t eventTime = process->frames_count;
-			if (i == eventCount) {
-				processNoteTasks(noteManager.processTo(process->frames_count));
-			} else {
-				auto *event = eventsIn->get(eventsIn, i);
-				processNoteTasks(noteManager.processEvent(event, eventsOut));
-				if (event->type == CLAP_EVENT_NOTE_ON || event->type == CLAP_EVENT_NOTE_OFF || event->type == CLAP_EVENT_NOTE_CHOKE) {
-					auto eventNote = *(const clap_event_note *)event;
-					// Randomise first velocity as well
-					if (event->type == CLAP_EVENT_NOTE_ON) {
-						auto randVel = 0.5 + (unitReal(randomEngine) - 0.5)*velocityRand.value;
-						eventNote.velocity = eventNote.velocity*randVel/(1 - eventNote.velocity - randVel + 2*eventNote.velocity*randVel);
-					}
-					sendWithReplacedNoteId<clap_event_note>(&eventNote.header, eventsOut, true);
-				} else if (event->type == CLAP_EVENT_NOTE_EXPRESSION) {
-					sendWithReplacedNoteId<clap_event_note_expression>(event, eventsOut, true);
-				} else if (event->type == CLAP_EVENT_PARAM_VALUE) {
-					sendWithReplacedNoteId<clap_event_param_value>(event, eventsOut);
-				} else if (event->type == CLAP_EVENT_PARAM_MOD) {
-					sendWithReplacedNoteId<clap_event_param_mod>(event, eventsOut);
-				} else {
-					eventsOut->try_push(eventsOut, event);
-				}
-				processEvent(event);
-			}
+			auto *event = (i < eventCount) ? eventsIn->get(eventsIn, i) : nullptr;
+			uint32_t eventTime = event ? event->time : process->frames_count;
 
+			// Process up to the next event (or block end)
 			while (blockProcessedTo < eventTime) {
 				for (auto &note : noteManager) {
 					if (note.released()) continue;
@@ -242,11 +205,14 @@ struct ExampleNotePlugin {
 							.velocity=0
 						};
 						eventsOut->try_push(eventsOut, &noteEvent.header);
-						// pick new note ID
-						noteEvent.note_id = outNote.noteId = int32_t(noteIdCounter++);
-						if (noteIdCounter >= 0x80000000) noteIdCounter = 0;
+
 						// start new note
 						noteEvent.header.type = CLAP_EVENT_NOTE_ON;
+						// with a new ID
+						outNote.noteId = int32_t(noteIdCounter++);
+						noteEvent.note_id = outNote.noteId;
+						if (noteIdCounter >= 0x80000000) noteIdCounter = 0;
+						// and random velocity
 						auto randVel = 0.5 + (unitReal(randomEngine) - 0.5)*velocityRand.value;
 						noteEvent.velocity = outNote.velocity*randVel/(1 - outNote.velocity - randVel + 2*outNote.velocity*randVel);
 						eventsOut->try_push(eventsOut, &noteEvent.header);
@@ -254,6 +220,79 @@ struct ExampleNotePlugin {
 					}
 				}
 				blockProcessedTo++;
+			}
+			
+			if (!event) {
+				noteManager.processTo(process->frames_count);
+				continue;
+			}
+			
+			if (auto note = noteManager.wouldStart(event)) {
+				noteManager.start(*note, eventsOut);
+				auto &outNote = outputNotes[note->voiceIndex];
+				outNote.velocity = note->velocity;
+				outNote.timeSinceTrigger = 0;
+				outNote.noteId = int32_t(noteIdCounter++);
+				if (noteIdCounter >= 0x80000000) noteIdCounter = 0;
+
+				// Randomise first velocity as well
+				auto randVel = 0.5 + (unitReal(randomEngine) - 0.5)*velocityRand.value;
+				note->velocity = note->velocity*randVel/(1 - note->velocity - randVel + 2*note->velocity*randVel);
+
+				// Sent note-start
+				clap_event_note noteEvent{
+					.header={
+						.size=sizeof(clap_event_note),
+						.time=event->time,
+						.space_id=CLAP_CORE_EVENT_SPACE_ID,
+						.type=CLAP_EVENT_NOTE_ON,
+						.flags=0
+					},
+					.note_id=outNote.noteId,
+					.port_index=note->port,
+					.channel=note->channel,
+					.key=note->baseKey,
+					.velocity=note->velocity
+				};
+				eventsOut->try_push(eventsOut, &noteEvent.header);
+			} else if (auto note = noteManager.wouldRelease(event)) {
+				noteManager.release(*note);
+				auto &outNote = outputNotes[note->voiceIndex];
+
+				// Sent note-end
+				clap_event_note noteEvent{
+					.header={
+						.size=sizeof(clap_event_note),
+						.time=event->time,
+						.space_id=CLAP_CORE_EVENT_SPACE_ID,
+						.type=CLAP_EVENT_NOTE_OFF,
+						.flags=0
+					},
+					.note_id=outNote.noteId,
+					.port_index=note->port,
+					.channel=note->channel,
+					.key=note->baseKey,
+					.velocity=0
+				};
+				eventsOut->try_push(eventsOut, &noteEvent.header);
+			} else {
+				noteManager.processEvent(event, eventsOut);
+				if (event->type == CLAP_EVENT_NOTE_EXPRESSION) {
+					sendWithReplacedNoteId<clap_event_note_expression>(event, eventsOut, true);
+				} else if (event->type == CLAP_EVENT_PARAM_VALUE) {
+					sendWithReplacedNoteId<clap_event_param_value>(event, eventsOut);
+				} else if (event->type == CLAP_EVENT_PARAM_MOD) {
+					sendWithReplacedNoteId<clap_event_param_mod>(event, eventsOut);
+				} else {
+					eventsOut->try_push(eventsOut, event);
+				}
+			}
+			processEvent(event);
+		}
+
+		for (auto &note : noteManager) {
+			if (note.released() && note.ageAt(process->frames_count) > sampleRate*noteTailSeconds) {
+				noteManager.stop(note, eventsOut);
 			}
 		}
 

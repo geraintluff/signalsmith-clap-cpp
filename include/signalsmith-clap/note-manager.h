@@ -174,7 +174,7 @@ struct NoteManager {
 		sendNoteEnd(newNote, eventsOut);
 	}
 	
-	const std::vector<Note> & start(const Note &newNote, const clap_output_events *eventsOut) {
+	const std::vector<Note> & start(Note &newNote, const clap_output_events *eventsOut) {
 		tasks.clear();
 		if (notes.size() >= notes.capacity()) {
 			// Kill an existing note
@@ -195,14 +195,14 @@ struct NoteManager {
 			stop(killNote, eventsOut);
 		}
 
-		notes.push_back(newNote);
 		// We had at least one note left in capacity, so this is safe
-		notes.back().voiceIndex = voiceIndexQueue.back();
+		newNote.voiceIndex = voiceIndexQueue.back();
 		voiceIndexQueue.pop_back();
+		notes.push_back(newNote);
 		return tasks;
 	}
 	
-	const std::vector<Note> & legato(const Note &newNote, const Note &existingNote, const clap_output_events *eventsOut) {
+	const std::vector<Note> & legato(Note &newNote, const Note &existingNote, const clap_output_events *eventsOut) {
 		tasks.clear();
 		for (auto &n : notes) {
 			if (n.match(existingNote)) {
@@ -212,7 +212,7 @@ struct NoteManager {
 
 				auto voiceIndex = existingNote.voiceIndex;
 				n = newNote;
-				n.voiceIndex = voiceIndex;
+				n.voiceIndex = newNote.voiceIndex = voiceIndex;
 				n.state = stateLegato;
 				n.age = 0;
 				break;
@@ -231,12 +231,12 @@ struct NoteManager {
 		return {};
 	}
 
-	const std::vector<Note> & release(const Note &releaseNote) {
+	const std::vector<Note> & release(Note &releaseNote) {
 		// If this is a note-end event (or we don't care) then use the timestamp we already have
 		return release(releaseNote, releaseNote.processFrom);
 	}
 
-	const std::vector<Note> & release(const Note &releaseNote, uint32_t atBlockTime) {
+	const std::vector<Note> & release(Note &releaseNote, uint32_t atBlockTime) {
 		tasks.clear();
 		for (auto &n : notes) {
 			if (n.match(releaseNote)) {
@@ -244,6 +244,7 @@ struct NoteManager {
 				n.state = stateUp;
 				n.velocity = releaseNote.velocity;
 				n.age = 0;
+				releaseNote.voiceIndex = n.voiceIndex; // let the caller know which note we just released
 				// Stop unless the note ID is a wildcard
 				if (releaseNote.noteId != -1) break;
 			}
