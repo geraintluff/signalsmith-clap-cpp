@@ -13,6 +13,7 @@
 #include "./example-synth/example-synth.h"
 
 #include <cstring>
+#include <iostream>
 
 std::string clapBundleResourceDir;
 
@@ -45,6 +46,7 @@ static const clap_plugin_t * pluginFactoryCreatePlugin(const struct clap_plugin_
 // ---- Main bundle methods ----
 
 bool clapEntryInit(const char *path) {
+	std::cout << "Initialised CLAP module at: " << path << std::endl;
 	clapBundleResourceDir = path;
 #if defined(__APPLE__) && (!defined(TARGET_OS_IPHONE) || !TARGET_OS_IPHONE)
 	clapBundleResourceDir += "/Contents/Resources";
