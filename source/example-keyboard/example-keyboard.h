@@ -22,6 +22,7 @@ struct ExampleKeyboard {
 			nullptr
 		};
 		static clap_plugin_descriptor descriptor{
+			.clap_version=CLAP_VERSION_INIT,
 			.id="uk.co.signalsmith-audio.plugins.example-keyboard",
 			.name="C++ Example Virtual Keyboard",
 			.vendor="Signalsmith Audio",

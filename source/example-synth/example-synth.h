@@ -28,6 +28,7 @@ struct ExampleSynth {
 			nullptr
 		};
 		static clap_plugin_descriptor descriptor{
+			.clap_version=CLAP_VERSION_INIT,
 			.id="uk.co.signalsmith-audio.plugins.example-synth",
 			.name="C++ Example Synth",
 			.vendor="Signalsmith Audio",
