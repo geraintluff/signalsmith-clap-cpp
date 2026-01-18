@@ -60,26 +60,19 @@ target_link_libraries(signalsmith-clap-base INTERFACE cbor-walker signalsmith-ba
 if (PROJECT_IS_TOP_LEVEL)
 	set(CLAP_WRAPPER_OUTPUT_NAME clap-wrapper-target)
 	set(CLAP_WRAPPER_DONT_ADD_TARGETS TRUE)
-	if(NOT DEFINED VST3_SDK_ROOT)
-		if(EMSCRIPTEN)
-			# don't download the VST3 SDK
-			set(VST3_SDK_ROOT "./dummy/vst3sdk/path")
-		else()
-			set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE)
-		endif()
-	endif()
+	set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES TRUE)
 
 	FetchContent_Declare(
 		clap
 		GIT_REPOSITORY https://github.com/free-audio/clap.git
-		GIT_TAG 1.2.6
+		GIT_TAG 1.2.7
 		GIT_SHALLOW ON
 	)
 	FetchContent_Declare(
 		clap-wrapper
 		GIT_REPOSITORY https://github.com/free-audio/clap-wrapper.git
-		GIT_TAG 4b16e64a5cd8e180c9ed550f52d4a7e1dccee549
-		GIT_SHALLOW on
+		GIT_TAG 2a4da4db3665ca18dd0830c5dec4303d3765efec
+		GIT_SHALLOW ON
 	)
 	FetchContent_MakeAvailable(clap clap-wrapper)
 endif()
