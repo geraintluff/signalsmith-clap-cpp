@@ -23,13 +23,37 @@ auto pluginMethod() {
 // Partial specialisation used to expand the method signature
 template <class Object, typename Return, typename... Args>
 struct ClapPluginMethodHelper<Return (Object::*)(Args...)> {
-	// Templated static method which forwards to a specific method
+	// Templated static method which forwards to a method on the plugin
 	template<Return (Object::*methodPtr)(Args...)>
 	static Return callMethod(const clap_plugin *plugin, Args... args) {
 		auto *obj = (Object *)plugin->plugin_data;
 		return (obj->*methodPtr)(args...);
 	}
 };
+
+// ---- pluginMemberMethod(): make a plain-C function which calls a C++ method on a plugin's field ----
+
+template<typename T1, typename T2>
+struct ClapPluginMemberMethodHelper;
+
+// Returns a plain-C function which calls a C++ method on a member field
+template<auto memberPtr, auto methodPtr>
+auto pluginMemberMethod() {
+	using C = ClapPluginMemberMethodHelper<decltype(memberPtr), decltype(methodPtr)>;
+	return C::template callMemberMethod<memberPtr, methodPtr>;
+}
+
+template<class Plugin, class Object, typename Return, typename... Args>
+struct ClapPluginMemberMethodHelper<Object Plugin::*, Return (Object::*)(Args...)> {
+	// Templated static method which forwards to a method on a member
+	template<Object Plugin::*memberPtr, Return (Object::*methodPtr)(Args...)>
+	static Return callMemberMethod(const clap_plugin *plugin, Args... args) {
+		auto *pObj = (Plugin *)plugin->plugin_data;
+		Object &obj = pObj->*memberPtr;
+		return (obj.*methodPtr)(args...);
+	}
+};
+
 
 // ---- checks for a host extension ----
 
