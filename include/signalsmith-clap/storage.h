@@ -35,6 +35,10 @@ struct StorageDummy {
 	// Accepts all int and float types, strings, vectors, and any types with a `.state(storage)` method
 	template<class V>
 	void operator()(const char *, V &) {}
+
+	// Accepts all of the above, plus `const char *` (raw C strings)
+	template<class V>
+	void extra(const char *, V &) {}
 };
 
 // Template-y magic to call `obj.uiState()` only if it exists
@@ -56,6 +60,20 @@ struct StorageCborWriter {
 
 	template<class V>
 	void operator()(const char *key, V &value) {
+		cbor.addUtf8(key);
+		writeValue(value);
+	}
+
+	void extra(const char *key, const char *value) {
+		cbor.addUtf8(key);
+		cbor.addUtf8(value);
+	}
+	void extra(const char *key, char *value) {
+		cbor.addUtf8(key);
+		cbor.addUtf8(value);
+	}
+	template<class V>
+	void extra(const char *key, V &value) {
 		cbor.addUtf8(key);
 		writeValue(value);
 	}
@@ -88,7 +106,7 @@ private:
 		cbor.addBool(value);
 	}
 	void writeValue(std::string &str) {
-		writeValue(str.c_str());
+		cbor.addUtf8(str.c_str());
 	}
 
 	template<class Item>
@@ -147,6 +165,9 @@ struct StorageCborReader {
 		cbor++;
 		readValue(v);
 	}
+
+	template<class V>
+	void extra(const char *key, const V &v) {}
 
 private:
 	Cbor cbor;
@@ -253,13 +274,18 @@ private:
 namespace _impl {
 
 	template<class Storage, class Obj, typename=void>
+	void callUiStorage(Storage &storage, Obj &obj) {
+		return obj.uiState(storage);
+	}
+
+	template<class Storage, class Obj, typename=void>
 	struct UiStorage {
 		static void optionalUiStorage(Storage &storage, Obj &obj) {}
 	};
 
 	// Specialisation, using SFINAE
 	template<class Storage, class Obj>
-	struct UiStorage<Storage, Obj, decltype(void(std::declval<Obj>().uiState(std::declval<Storage>())))> {
+	struct UiStorage<Storage, Obj, decltype(callUiStorage(std::declval<Storage &>(), std::declval<Obj &>()))> {
 		static void optionalUiStorage(Storage &storage, Obj &obj) {
 			obj.uiState(storage);
 		}

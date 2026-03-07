@@ -106,6 +106,21 @@ struct Param {
 			outEvents->try_push(outEvents, &event.header);
 		}
 	}
+	
+	template<class Storage>
+	void state(Storage &storage) {
+		storage("value", value);
+	}
+	template<class Storage>
+	void uiState(Storage &storage) {
+		storage.extra("$type", "parameter");
+		storage.extra("id", info.id);
+		storage.extra("flags", info.flags);
+		storage.extra("name", info.name);
+		storage.extra("min", info.min_value);
+		storage.extra("max", info.max_value);
+		storage.extra("default", info.default_value);
+	}
 };
 
 /** A collection of Parameters */

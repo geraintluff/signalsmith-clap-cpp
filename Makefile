@@ -44,7 +44,7 @@ dev-%: clap-%
 		&& rm -f "$*.clap" \
 		&& ln -s "$(CURRENT_DIR)/out/Release/$*.clap"
 	# Symlink the bundle's Resources directory
-	pushd out/Release/$*.clap/Contents/; rm -rf Resources; ln -s "$(CURRENT_DIR)/resources" Resources
+	pushd out/Release/$*.clap/Contents/; rm -rf Resources; ln -s "$(CURRENT_DIR)/web-ui/dist" Resources
 	/Applications/REAPER.app/Contents/MacOS/REAPER out/REAPER/$*.RPP
 
 ####### Emscripten #######
