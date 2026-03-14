@@ -38,17 +38,17 @@ struct NoteManager {
 		}
 		
 		// `other` may contain wildcards (-1), but `this` must not
-		bool match(const Note &other) const {
+		bool match(const Note &other, bool wildcardsIncludeReleased=false) const {
 			if (other.noteId != -1) return noteId == other.noteId;
-			if (released()) return false;
+			if (!wildcardsIncludeReleased && released()) return false;
 			if (other.port != -1 && other.port != port) return false;
 			if (other.channel != -1 && other.channel != channel) return false;
 			if (other.baseKey != -1 && other.baseKey != baseKey) return false;
 			return true;
 		}
-		bool match(const NoteMod &noteMod) const {
+		bool match(const NoteMod &noteMod, bool wildcardsIncludeReleased=false) const {
 			if (noteMod.noteId != -1) return noteId == noteMod.noteId;
-			if (released()) return false;
+			if (!wildcardsIncludeReleased && released()) return false;
 			if (noteMod.port != -1 && noteMod.port != port) return false;
 			if (noteMod.channel != -1 && noteMod.channel != channel) return false;
 			if (noteMod.baseKey != -1 && noteMod.baseKey != baseKey) return false;
@@ -56,9 +56,9 @@ struct NoteManager {
 		}
 		// A few different event types have the same fields, this catches all of them
 		template<class ClapEvent>
-		bool matchEvent(const ClapEvent &clapEvent, bool includeReleased=false) const {
+		bool matchEvent(const ClapEvent &clapEvent, bool wildcardsIncludeReleased=false) const {
 			if (clapEvent.note_id != -1) return clapEvent.note_id == noteId;
-			if (released() && !includeReleased) return false;
+			if (!wildcardsIncludeReleased && released()) return false;
 			if (clapEvent.port_index >= 0 && clapEvent.port_index != port) return false;
 			if (clapEvent.channel >= 0 && clapEvent.channel != channel) return false;
 			if (clapEvent.key >= 0 && clapEvent.key != baseKey) return false;
@@ -292,7 +292,7 @@ struct NoteManager {
 			channelNoteExpressions[noteMod.channel][noteMod.expression] = noteMod.value;
 		}
 		for (auto &n : notes) {
-			if (n.match(noteMod)) {
+			if (n.match(noteMod, true)) {
 				addTask(n, atBlockTime, true);
 				noteMod.applyTo(n);
 			}
