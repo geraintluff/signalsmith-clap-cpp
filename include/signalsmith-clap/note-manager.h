@@ -92,8 +92,20 @@ struct NoteManager {
 		int16_t baseKey;
 
 		void applyTo(Note &note) const {
-			if (expression == CLAP_NOTE_EXPRESSION_TUNING) {
+			if (expression == CLAP_NOTE_EXPRESSION_VOLUME) {
+				note.volume = value;
+			} else if (expression == CLAP_NOTE_EXPRESSION_PAN) {
+				note.pan = value;
+			} else if (expression == CLAP_NOTE_EXPRESSION_TUNING) {
 				note.key = note.baseKey + value;
+			} else if (expression == CLAP_NOTE_EXPRESSION_VIBRATO) {
+				note.mod = value;
+			} else if (expression == CLAP_NOTE_EXPRESSION_EXPRESSION) {
+				note.expression = value;
+			} else if (expression == CLAP_NOTE_EXPRESSION_BRIGHTNESS) {
+				note.brightness = value;
+			} else if (expression == CLAP_NOTE_EXPRESSION_PRESSURE) {
+				note.pressure = value;
 			} else {
 #ifdef LOG_EXPR
 				LOG_EXPR(expression);
