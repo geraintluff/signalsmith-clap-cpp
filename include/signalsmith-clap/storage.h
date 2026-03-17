@@ -225,7 +225,38 @@ private:
 	
 	template<class Item>
 	void readVector(std::vector<Item> &array) {
-		if (!cbor.isArray()) return;
+		if (!cbor.isArray()) {
+			if (cbor.isMap()) {
+				cbor = cbor.forEachPair([&](Cbor key, Cbor value){
+					size_t index = 0;
+					if (key.isInt()) {
+						index = key;
+					} else if (key.isUtf8()) {
+						// Parse base-10 positive integer (JS compatibility)
+						auto *bytes = key.bytes();
+						size_t length = key.length(); // byte length
+						if (length == 0) return;
+						for (size_t i = 0; i < length; ++i) {
+							char c = char(bytes[i]);
+							if (c < '0' || c > '9') return; // invalid character
+							c -= '0';
+							index = (index*10) + c;
+						}
+					} else {
+						return;
+					}
+					if (index < array.size()) {
+						cbor = value;
+						readValue(array[index]);
+					} else if (index == array.size()) {
+						cbor = value;
+						array.emplace_back();
+						readValue(array.back());
+					}
+				});
+			}
+			return;
+		}
 		size_t length = 0;
 		cbor = cbor.forEach([&](Cbor item, size_t index){
 			length = index + 1;
