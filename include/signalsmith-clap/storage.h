@@ -274,18 +274,13 @@ private:
 namespace _impl {
 
 	template<class Storage, class Obj, typename=void>
-	void callUiStorage(Storage &storage, Obj &obj) {
-		return obj.uiState(storage);
-	}
-
-	template<class Storage, class Obj, typename=void>
 	struct UiStorage {
 		static void optionalUiStorage(Storage &storage, Obj &obj) {}
 	};
 
 	// Specialisation, using SFINAE
 	template<class Storage, class Obj>
-	struct UiStorage<Storage, Obj, decltype(callUiStorage(std::declval<Storage &>(), std::declval<Obj &>()))> {
+	struct UiStorage<Storage, Obj, decltype(std::declval<Obj &>().uiState(std::declval<Storage &>()))> {
 		static void optionalUiStorage(Storage &storage, Obj &obj) {
 			obj.uiState(storage);
 		}
