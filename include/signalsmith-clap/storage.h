@@ -50,11 +50,16 @@ namespace _impl {
 struct StorageCborWriter {
 	StorageCborWriter(const signalsmith::cbor::CborWriter &writer, std::vector<unsigned char> *buffer=nullptr, bool wantsExtra=false) : cbor(writer), wantsExtra(wantsExtra) {
 		if (buffer) buffer->resize(0);
-		cbor.openMap();
 	}
 	StorageCborWriter(std::vector<unsigned char> &cborBuffer, bool wantsExtra=false) : StorageCborWriter(signalsmith::cbor::CborWriter(cborBuffer), &cborBuffer, wantsExtra) {}
 	
-	~StorageCborWriter() {
+	template<class Obj>
+	void writeObject(Obj &obj) {
+		cbor.openMap();
+		obj.state(*this);
+		if (wantsExtra) {
+			_impl::optionalUiStorage(*this, obj);
+		}
 		cbor.close();
 	}
 
@@ -135,22 +140,41 @@ private:
 
 	template<class Obj>
 	void writeValue(Obj &obj) {
-		cbor.openMap();
-		obj.state(*this);
-		if (wantsExtra) {
-			_impl::optionalUiStorage(*this, obj);
-		}
-		cbor.close();
+		writeObject(obj);
 	}
 };
 
 struct StorageCborReader {
 	using Cbor = signalsmith::cbor::TaggedCborWalker;
 	
-	StorageCborReader(Cbor c, bool wantsExtra=false) : cbor(c), wantsExtra(wantsExtra) {
-		if (cbor.isMap()) cbor = cbor.enter();
-	}
+	StorageCborReader(Cbor c, bool wantsExtra=false) : cbor(c), wantsExtra(wantsExtra) {}
 	StorageCborReader(const std::vector<unsigned char> &v, bool wantsExtra=false) : StorageCborReader(Cbor(v), wantsExtra) {}
+
+	template<class Obj>
+	bool readObject(Obj &obj) {
+		if (!cbor.isMap()) return false;
+
+		// This calls `obj.state()` multiple times, skipping all but a single key on each pass
+		cbor = cbor.forEachPair([&](Cbor key, Cbor value){
+			if (!key.isUtf8()) return;
+
+			const char *fkb = filterKeyBytes;
+			size_t fkl = filterKeyLength;
+
+			// Temporarily set key, and scan the object for that property
+			filterKeyBytes = (const char *)key.bytes();
+			filterKeyLength = key.length();
+			cbor = key; // in position for `operator()` to check the key and then read the value
+			obj.state(*this);
+			if (wantsExtra) {
+				_impl::optionalUiStorage(*this, obj);
+			}
+
+			filterKeyBytes = fkb;
+			filterKeyLength = fkl;
+		});
+		return true;
+	}
 	
 	template<class V>
 	void operator()(const char *key, V &v) {
@@ -158,7 +182,7 @@ struct StorageCborReader {
 			if (!keyMatch(key, filterKeyBytes, filterKeyLength)) return;
 		}
 		if (!cbor.isUtf8()) return; // We expect a string key
-		// If we have a filter, we *should* be just in front of the appropriate key, but check anyway
+		// If have a filter defined, we *should* be just in front of the appropriate key, but we need to check
 		if (!keyMatch(key, (const char *)cbor.bytes(), cbor.length())) {
 			return; // key doesn't match
 		}
@@ -177,27 +201,7 @@ private:
 
 	template<class Obj>
 	void readValue(Obj &obj) {
-		if (!cbor.isMap()) return;
-
-		// This calls `obj.state()` multiple times, skipping all but a single key on each pass
-		cbor = cbor.forEachPair([&](Cbor key, Cbor value){
-			if (!key.isUtf8()) return;
-
-			const char *fkb = filterKeyBytes;
-			size_t fkl = filterKeyLength;
-
-			// Temporarily set key, and scan the object for that property
-			filterKeyBytes = (const char *)key.bytes();
-			filterKeyLength = key.length();
-			cbor = key; // `operator()` checks the key and then increments if matched, so it's pointing to the value
-			obj.state(*this);
-			if (wantsExtra) {
-				_impl::optionalUiStorage(*this, obj);
-			}
-
-			filterKeyBytes = fkb;
-			filterKeyLength = fkl;
-		});
+		readObject(obj);
 	}
 
 #define STORAGE_BASIC_TYPE(V) \
