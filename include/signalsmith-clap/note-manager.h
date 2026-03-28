@@ -6,6 +6,7 @@
 #include <array>
 #include <optional>
 #include <cmath>
+#include <algorithm>
 
 namespace signalsmith { namespace clap {
 
@@ -113,6 +114,8 @@ struct NoteManager {
 			}
 		}
 	};
+	using OptionalNote = std::optional<Note>;
+	using OptionalNoteMod = std::optional<NoteMod>;
 	
 	NoteManager(size_t polyphony=64, double pitchWheelRange=2) : pitchWheelRange(pitchWheelRange) {
 		notes.reserve(polyphony);
@@ -168,7 +171,7 @@ struct NoteManager {
 	}
 
 	// Gets a note ready, but don't do anything with it yet
-	std::optional<Note> wouldStart(const clap_event_header *event) const {
+	OptionalNote wouldStart(const clap_event_header *event) const {
 		if (event->space_id != CLAP_CORE_EVENT_SPACE_ID) return {};
 		event = translateEvent(event);
 		if (event->type == CLAP_EVENT_NOTE_ON) {
@@ -233,7 +236,7 @@ struct NoteManager {
 		return tasks;
 	}
 
-	std::optional<Note> wouldRelease(const clap_event_header *event) const {
+	OptionalNote wouldRelease(const clap_event_header *event) const {
 		if (event->space_id != CLAP_CORE_EVENT_SPACE_ID) return {};
 		event = translateEvent(event);
 		if (event->type == CLAP_EVENT_NOTE_OFF || event->type == CLAP_EVENT_NOTE_CHOKE) {
@@ -264,7 +267,7 @@ struct NoteManager {
 		return tasks;
 	}
 
-	std::optional<NoteMod> wouldModNotes(const clap_event_header *event) const {
+	OptionalNoteMod wouldModNotes(const clap_event_header *event) const {
 		if (event->space_id != CLAP_CORE_EVENT_SPACE_ID) return {};
 		event = translateEvent(event);
 		if (event->type == CLAP_EVENT_NOTE_EXPRESSION) {
@@ -338,6 +341,12 @@ struct NoteManager {
 
 	const std::vector<Note> & activeNotes() const {
 		return notes;
+	}
+	// Most of the time this isn't necessary
+	void sortByKey() {
+		std::sort(notes.begin(), notes.end(), [](const Note &a, const Note &b){
+			return a.key < b.key;
+		});
 	}
 	
 	auto begin() const {
