@@ -235,7 +235,7 @@ struct NoteManager {
 		}
 		return tasks;
 	}
-
+	
 	OptionalNote wouldRelease(const clap_event_header *event) const {
 		if (event->space_id != CLAP_CORE_EVENT_SPACE_ID) return {};
 		event = translateEvent(event);
@@ -348,12 +348,21 @@ struct NoteManager {
 			return a.key < b.key;
 		});
 	}
+	template<class LessThan>
+	void sort(LessThan &&lessThan) {
+		std::sort(notes.begin(), notes.end(), lessThan);
+	}
 	
 	auto begin() const {
 		return notes.begin();
 	}
 	auto end() const {
 		return notes.end();
+	}
+	
+	void swapVoices(size_t indexA, size_t indexB) {
+		auto &noteA = notes[indexA], &noteB = notes[indexB];
+		std::swap(noteA.voiceIndex, noteB.voiceIndex);
 	}
 	
 private:
