@@ -4,6 +4,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 /* A template-based pattern for reading/writing state, inspired by the JSFX @serialize block
 
@@ -39,6 +40,9 @@ struct StorageDummy {
 	// Accepts all of the above, plus `const char *` (raw C strings)
 	template<class V>
 	void extra(const char *, V &) {}
+
+	// Mark that the entire current object/scope should be sent back (to the UI, wherever) if any part of it changes
+	void markAtomic() {}
 };
 
 // Template-y magic to call `obj.uiState()` only if it exists
@@ -47,43 +51,85 @@ namespace _impl {
 	void optionalUiStorage(Storage &storage, Obj &obj);
 }
 
+struct DirtySet {
+	std::unordered_set<size_t> weakSet, strongSet;
+	
+	bool includes(void *obj) const {
+		size_t objAsInt = reinterpret_cast<size_t>(obj);
+		return strongSet.count(objAsInt) || weakSet.count(objAsInt);
+	}
+	bool includesStrong(void *obj) const {
+		size_t objAsInt = reinterpret_cast<size_t>(obj);
+		return strongSet.count(objAsInt);
+	}
+	
+	void addWeak(void *obj) {
+		size_t objAsInt = reinterpret_cast<size_t>(obj);
+		weakSet.insert(objAsInt);
+	}
+	void addStrong(void *obj) {
+		size_t objAsInt = reinterpret_cast<size_t>(obj);
+		strongSet.insert(objAsInt);
+	}
+};
+
 struct StorageCborWriter {
-	StorageCborWriter(const signalsmith::cbor::CborWriter &writer, std::vector<unsigned char> *buffer=nullptr, bool wantsExtra=false) : cbor(writer), wantsExtra(wantsExtra) {
+	StorageCborWriter(const signalsmith::cbor::CborWriter &writer, std::vector<unsigned char> *buffer=nullptr, bool wantsExtra=false, DirtySet *dirtySet=nullptr) : cbor(writer), wantsExtra(wantsExtra), dirtySet(dirtySet) {
 		if (buffer) buffer->resize(0);
 	}
 	StorageCborWriter(std::vector<unsigned char> &cborBuffer, bool wantsExtra=false) : StorageCborWriter(signalsmith::cbor::CborWriter(cborBuffer), &cborBuffer, wantsExtra) {}
-	
+
 	template<class Obj>
 	void writeObject(Obj &obj) {
+		auto *ds = dirtySet;
+		if (dirtySet && dirtySet->includesStrong(&obj)) {
+			dirtySet = nullptr; // temporarily remove it, so everything gets included
+		}
+		
 		cbor.openMap();
 		obj.state(*this);
 		if (wantsExtra) {
 			_impl::optionalUiStorage(*this, obj);
 		}
 		cbor.close();
+		
+		dirtySet = ds; // restore if we removed it above
 	}
 
 	template<class V>
 	void operator()(const char *key, V &value) {
+		if (shouldSkip(value)) return;
 		cbor.addUtf8(key);
 		writeValue(value);
 	}
 
 	void extra(const char *key, const char *value) {
+		if (shouldSkip(value)) return;
 		cbor.addUtf8(key);
 		cbor.addUtf8(value);
 	}
 	void extra(const char *key, char *value) {
+		if (shouldSkip(value)) return;
 		cbor.addUtf8(key);
 		cbor.addUtf8(value);
 	}
 	template<class V>
 	void extra(const char *key, V &value) {
+		if (shouldSkip(value)) return;
 		cbor.addUtf8(key);
 		writeValue(value);
 	}
 
+	void markAtomic() {}
+
 private:
+	DirtySet *dirtySet;
+
+	template<class V>
+	bool shouldSkip(V &value) {
+		return dirtySet && !dirtySet->includes(&value);
+	}
+
 	signalsmith::cbor::CborWriter cbor;
 	const bool wantsExtra = false;
 
@@ -116,9 +162,21 @@ private:
 
 	template<class Item>
 	void writeValue(std::vector<Item> &array) {
-		cbor.openArray(array.size());
-		for (auto &item : array) {
-			writeValue(item);
+		if (dirtySet && !dirtySet->includesStrong(&array)) {
+			// Write as a patch object
+			cbor.openMap();
+			for (size_t i = 0; i < array.size(); ++i) {
+				auto &item = array[i];
+				if (shouldSkip(item)) continue;
+				cbor.addInt(i);
+				writeValue(item);
+			}
+			cbor.close();
+		} else {
+			cbor.openArray(array.size());
+			for (auto &item : array) {
+				writeValue(item);
+			}
 		}
 	}
 
@@ -147,12 +205,16 @@ private:
 struct StorageCborReader {
 	using Cbor = signalsmith::cbor::TaggedCborWalker;
 	
-	StorageCborReader(Cbor c, bool wantsExtra=false) : cbor(c), wantsExtra(wantsExtra) {}
-	StorageCborReader(const std::vector<unsigned char> &v, bool wantsExtra=false) : StorageCborReader(Cbor(v), wantsExtra) {}
+	StorageCborReader(Cbor c, bool wantsExtra=false, DirtySet *dirtySet=nullptr) : cbor(c), wantsExtra(wantsExtra), dirtySet(dirtySet) {}
+	StorageCborReader(const std::vector<unsigned char> &v, bool wantsExtra=false, DirtySet *dirtySet=nullptr) : StorageCborReader(Cbor(v), wantsExtra, dirtySet) {}
 
 	template<class Obj>
 	bool readObject(Obj &obj) {
 		if (!cbor.isMap()) return false;
+		
+		bool childMarkedAtomic = false;
+		void *co = currentObj;
+		currentObj = &obj;
 
 		// This calls `obj.state()` multiple times, skipping all but a single key on each pass
 		cbor = cbor.forEachPair([&](Cbor key, Cbor value){
@@ -165,14 +227,22 @@ struct StorageCborReader {
 			filterKeyBytes = (const char *)key.bytes();
 			filterKeyLength = key.length();
 			cbor = key; // in position for `operator()` to check the key and then read the value
+
+			containsMarkAtomic = false;
 			obj.state(*this);
 			if (wantsExtra) {
 				_impl::optionalUiStorage(*this, obj);
 			}
+			if (containsMarkAtomic) childMarkedAtomic = true;
 
 			filterKeyBytes = fkb;
 			filterKeyLength = fkl;
 		});
+		
+		currentObj = co;
+		containsMarkAtomic = childMarkedAtomic;
+		if (containsMarkAtomic && dirtySet) dirtySet->addWeak(&obj);
+
 		return true;
 	}
 	
@@ -193,7 +263,16 @@ struct StorageCborReader {
 	template<class V>
 	void extra(const char *key, const V &v) {}
 
+	void markAtomic() {
+		containsMarkAtomic = true;
+		if (dirtySet) dirtySet->addStrong(currentObj);
+	}
+
 private:
+	DirtySet *dirtySet;
+	void *currentObj = nullptr;
+	bool containsMarkAtomic = false;
+
 	Cbor cbor;
 	const bool wantsExtra;
 	const char *filterKeyBytes = nullptr;
@@ -203,7 +282,7 @@ private:
 	void readValue(Obj &obj) {
 		readObject(obj);
 	}
-
+	
 #define STORAGE_BASIC_TYPE(V) \
 	void readValue(V &v) { \
 		v = V(cbor++); \
@@ -231,6 +310,7 @@ private:
 	void readVector(std::vector<Item> &array) {
 		if (!cbor.isArray()) {
 			if (cbor.isMap()) {
+				bool childMarkedAtomic = false;
 				cbor = cbor.forEachPair([&](Cbor key, Cbor value){
 					size_t index = 0;
 					if (key.isInt()) {
@@ -249,6 +329,7 @@ private:
 					} else {
 						return;
 					}
+					containsMarkAtomic = false;
 					if (index < array.size()) {
 						cbor = value;
 						readValue(array[index]);
@@ -256,20 +337,31 @@ private:
 						cbor = value;
 						array.emplace_back();
 						readValue(array.back());
+						markAtomic(); // size changed
 					}
+					if (containsMarkAtomic) childMarkedAtomic = true;
 				});
+				containsMarkAtomic = childMarkedAtomic;
+				if (containsMarkAtomic && dirtySet) dirtySet->addWeak(&array);
 			}
-			return;
-		}
-		size_t length = 0;
-		cbor = cbor.forEach([&](Cbor item, size_t index){
-			length = index + 1;
-			if (array.size() < length) array.resize(length);
+		} else {
+			bool childMarkedAtomic = false;
+			size_t length = 0;
+			bool didResize = false;
+			cbor = cbor.forEach([&](Cbor item, size_t index){
+				length = index + 1;
+				if (array.size() < length) array.resize(length);
 
-			cbor = item;
-			readValue(array[index]);
-		});
-		array.resize(length);
+				containsMarkAtomic = false;
+				cbor = item;
+				readValue(array[index]);
+				if (containsMarkAtomic) childMarkedAtomic = true;
+			});
+			array.resize(length);
+
+			containsMarkAtomic = childMarkedAtomic;
+			if (containsMarkAtomic) markAtomic(); // Always atomic if the patch was an entire array
+		}
 	}
 
 	template<class Item>
