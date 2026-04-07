@@ -301,7 +301,11 @@ private:
 #undef STORAGE_BASIC_TYPE
 
 	void readValue(std::string &v) {
-		if (!cbor.isUtf8()) v.clear();
+		if (!cbor.isUtf8()) {
+			v.clear(); // sometimes `null` or similar
+			++cbor;
+			return;
+		}
 		v.assign((const char *)cbor.bytes(), cbor.length());
 		++cbor;
 	}
