@@ -21,6 +21,8 @@ struct NoteManager {
 	
 	// 2 for default MIDI, 48 for most MPE
 	double pitchWheelRange = 2;
+	bool legatoResetsAge = true, releaseResetsAge = true;
+	
 	struct NoteMod;
 	
 	struct Note {
@@ -64,10 +66,6 @@ struct NoteManager {
 			if (clapEvent.channel >= 0 && clapEvent.channel != channel) return false;
 			if (clapEvent.key >= 0 && clapEvent.key != baseKey) return false;
 			return true;
-		}
-		
-		float killCost() const {
-			return 1.0f/(age + 1) + 10 - (int)state;
 		}
 		
 		size_t ageAt(uint32_t timeInBlock) const {
@@ -189,29 +187,36 @@ struct NoteManager {
 		sendNoteEnd(newNote, eventsOut);
 	}
 	
+	void setVoiceKillCosts(float *killCosts) {
+		voiceKillCosts = killCosts;
+	}
+
 	const std::vector<Note> & start(Note &newNote, const clap_output_events *eventsOut) {
 		tasks.clear();
 		if (notes.size() >= notes.capacity()) {
 			// Kill an existing note
 			size_t killIndex = 0;
-			float killCost = 1e10;
+			float killCost = 1e10f;
 			for (size_t i = 0; i < notes.size(); ++i) {
-				auto cost = notes[i].killCost();
+				auto cost = noteKillCost(i, newNote.processFrom);
 				if (cost < killCost) {
 					killIndex = i;
 					killCost = cost;
 				}
 			}
 			auto &killNote = notes[killIndex];
-			killNote.state = stateKill;
-			killNote.processTo = newNote.processFrom;
-			// Push this task even if it's zero length
-			tasks.push_back(killNote);
+			if (killNote.state != State::stateDown) {
+				// Push this task even if it's zero length, unless it's not even started yet
+				killNote.state = stateKill;
+				killNote.processTo = newNote.processFrom;
+				tasks.push_back(killNote);
+			}
 			stop(killNote, eventsOut);
 		}
 
 		// We had at least one note left in capacity, so this is safe
 		newNote.voiceIndex = voiceIndexQueue.back();
+		if (voiceKillCosts) voiceKillCosts[newNote.voiceIndex] += 1e10f; // prefer not to kill this note again, since the custom cost won't get updated until later
 		voiceIndexQueue.pop_back();
 		notes.push_back(newNote);
 		return tasks;
@@ -229,7 +234,7 @@ struct NoteManager {
 				n = newNote;
 				n.voiceIndex = newNote.voiceIndex = voiceIndex;
 				n.state = stateLegato;
-				n.age = 0;
+				if (legatoResetsAge) n.age = 0;
 				break;
 			}
 		}
@@ -258,7 +263,7 @@ struct NoteManager {
 				addTask(n, atBlockTime);
 				n.state = stateUp;
 				n.velocity = releaseNote.velocity;
-				n.age = 0;
+				if (releaseResetsAge) n.age = 0;
 				releaseNote.voiceIndex = n.voiceIndex; // let the caller know which note we just released
 				// Stop unless the note ID is a wildcard
 				if (releaseNote.noteId != -1) break;
@@ -375,7 +380,7 @@ private:
 	std::vector<Note> notes;
 	std::vector<Note> tasks;
 	std::vector<size_t> voiceIndexQueue;
-	
+
 	void addTask(Note &n, uint32_t processTo, bool noStateChange=false) {
 		// Skip zero-length tasks for non-event states, or if we know that the event state isn't about to be overwritten
 		if (n.processFrom >= processTo && (noStateChange || n.state == stateContinue || n.state == stateRelease)) return;
@@ -482,6 +487,13 @@ private:
 		note.expression = channelNoteExpressions[note.channel][CLAP_NOTE_EXPRESSION_EXPRESSION];
 		note.brightness = channelNoteExpressions[note.channel][CLAP_NOTE_EXPRESSION_BRIGHTNESS];
 		note.pressure = channelNoteExpressions[note.channel][CLAP_NOTE_EXPRESSION_PRESSURE];
+	}
+
+	float *voiceKillCosts = nullptr;
+	float noteKillCost(size_t noteIndex, size_t blockIndex) {
+		auto &note = notes[noteIndex];
+		if (voiceKillCosts) return voiceKillCosts[note.voiceIndex];
+		return 1.0f/(note.ageAt(blockIndex) + 1) + 10 - (int)note.state;
 	}
 };
 
