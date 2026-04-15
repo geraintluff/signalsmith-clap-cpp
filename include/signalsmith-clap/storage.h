@@ -180,6 +180,15 @@ private:
 		}
 	}
 
+	void writeValue(std::vector<bool> &array) {
+		cbor.openArray(array.size());
+		// For other vector types, the values have distinct addresses, so they work with `dirtySet`
+		// but `std::vector<bool>` is silly, so we always write the whole thing
+		for (auto pseudoBool : array) {
+			cbor.addBool(pseudoBool);
+		}
+	}
+
 #define STORAGE_TYPED_ARRAY(T) \
 	void writeValue(std::vector<T> &array) { \
 		cbor.addTypedArray(array.data(), array.size()); \
@@ -282,7 +291,7 @@ private:
 	void readValue(Obj &obj) {
 		readObject(obj);
 	}
-	
+		
 #define STORAGE_BASIC_TYPE(V) \
 	void readValue(V &v) { \
 		v = V(cbor++); \
@@ -366,6 +375,13 @@ private:
 			containsMarkAtomic = childMarkedAtomic;
 			if (containsMarkAtomic) markAtomic(); // Always atomic if the patch was an entire array
 		}
+	}
+
+	using VectorBoolIterator = typename std::vector<bool>::reference;
+	void readValue(VectorBoolIterator pseudoBool) {
+		bool actualBool = pseudoBool;
+		readValue(actualBool);
+		pseudoBool = actualBool;
 	}
 
 	template<class Item>
